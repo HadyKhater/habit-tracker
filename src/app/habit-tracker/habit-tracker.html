@@ -1,0 +1,281 @@
+<div class="app" [class.light]="theme() === 'light'" [class.dark]="theme() === 'dark'">
+
+  <div class="motivation-toast" [class.visible]="motivationVisible()">{{ motivationMsg() }}</div>
+
+  <header class="header">
+    <div class="header-left">
+      <span class="logo">🎯 عاداتي</span>
+      <span class="month-badge">{{ monthName() }}</span>
+    </div>
+    <div class="header-right">
+      <button class="icon-btn" (click)="toggleTheme()">{{ theme() === 'dark' ? '☀️' : '🌙' }}</button>
+      <button class="add-btn" (click)="openAdd()">+ عادة جديدة</button>
+    </div>
+  </header>
+
+  <div class="overall-progress">
+    <div class="progress-info">
+      <span class="progress-label">تقدمك الكلي في {{ monthName() }}</span>
+      <span class="progress-pct">{{ overallStats().pct }}%</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" [style.width.%]="overallStats().pct"></div>
+    </div>
+    <div class="overall-meta">
+      <span>✅ {{ overallStats().done }} مكتملة</span>
+      <span>🔥 أطول streak: {{ overallStats().bestStreak }} يوم</span>
+      <span>📋 {{ svc.habits().length }} عادات</span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button [class.active]="tab() === 'week'"  (click)="setTab('week')">📅 أسبوعي</button>
+    <button [class.active]="tab() === 'month'" (click)="setTab('month')">🗓️ شهري</button>
+    <button [class.active]="tab() === 'stats'" (click)="setTab('stats')">📊 إحصائيات</button>
+  </div>
+
+  @if (tab() === 'week') {
+    <div class="week-view">
+      <div class="week-nav">
+        <button class="nav-btn" (click)="prevWeek()">→</button>
+        <div class="week-nav-center">
+          <span class="week-label">{{ weekLabel() }}</span>
+          @if (svc.currentWeekOffset() !== 0) {
+            <button class="today-btn" (click)="goToday()">اليوم</button>
+          }
+        </div>
+        <button class="nav-btn" (click)="nextWeek()" [disabled]="svc.currentWeekOffset() >= 0">←</button>
+      </div>
+
+      <div class="grid-scroll">
+        <table class="habit-table">
+          <thead>
+            <tr>
+              <th class="habit-col-head">العادة</th>
+              @for (d of weekDates(); track $index) {
+                <th [class.today-col]="isToday(d)" [class.future-col]="isFuture(d)">
+                  <div class="day-head">
+                    <span class="day-name">{{ DAY_NAMES[d.getDay() === 6 ? 0 : d.getDay() + 1] }}</span>
+                    <span class="day-num" [class.today-bubble]="isToday(d)">{{ d.getDate() }}</span>
+                  </div>
+                </th>
+              }
+              <th class="pct-col">%</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (h of svc.habits(); track h.id) {
+              <tr class="habit-row">
+                <td class="habit-name-cell">
+                  <div class="habit-name-inner">
+                    <span class="habit-icon" [style.background]="getColor(h.color).hex + '33'">{{ h.icon }}</span>
+                    <div class="habit-text">
+                      <span class="habit-title">{{ h.name }}</span>
+                      <span class="habit-cat">{{ h.category }}</span>
+                    </div>
+                  </div>
+                </td>
+                @for (d of weekDates(); track $index) {
+                  <td class="check-cell" [class.today-col]="isToday(d)">
+                    <button class="check-btn"
+                      [class.checked]="svc.isChecked(h.id, d)"
+                      [class.future]="isFuture(d)"
+                      [style.--habit-color]="getColor(h.color).hex"
+                      (click)="toggle(h.id, d)">
+                      @if (svc.isChecked(h.id, d)) { ✓ }
+                    </button>
+                  </td>
+                }
+                <td class="pct-cell">
+                  <div class="mini-progress">
+                    <div class="mini-bar-bg">
+                      <div class="mini-bar-fill" [style.width.%]="habitStats(h.id).pct" [style.background]="getColor(h.color).hex"></div>
+                    </div>
+                    <span class="mini-pct">{{ habitStats(h.id).pct }}%</span>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="habit-cards">
+        @for (h of svc.habits(); track h.id) {
+          <div class="habit-card" [style.border-color]="getColor(h.color).hex + '55'">
+            <div class="card-top">
+              <span class="card-icon" [style.background]="getColor(h.color).hex + '33'">{{ h.icon }}</span>
+              <div class="card-info">
+                <span class="card-name">{{ h.name }}</span>
+                <span class="card-meta">🔥 {{ habitStats(h.id).streak }} يوم | هدف: {{ h.goal }}/أسبوع</span>
+              </div>
+              <div class="card-actions">
+                <button class="action-btn" (click)="openEdit(h)">✏️</button>
+                <button class="action-btn danger" (click)="confirmDelete(h.id)">🗑️</button>
+              </div>
+            </div>
+            <div class="card-bar-bg">
+              <div class="card-bar-fill" [style.width.%]="habitStats(h.id).pct" [style.background]="getColor(h.color).hex"></div>
+            </div>
+            <div class="card-bottom">
+              <span>{{ habitStats(h.id).done }} / {{ monthDates().length }} يوم</span>
+              <span [style.color]="getColor(h.color).hex">{{ habitStats(h.id).pct }}%</span>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  @if (tab() === 'month') {
+    <div class="month-view">
+      <div class="month-day-headers">
+        @for (d of DAY_NAMES; track d) { <div class="month-day-name">{{ d }}</div> }
+      </div>
+      @for (h of svc.habits(); track h.id) {
+        <div class="month-habit-block">
+          <div class="month-habit-title">
+            <span>{{ h.icon }} {{ h.name }}</span>
+            <span [style.color]="getColor(h.color).hex">{{ habitStats(h.id).pct }}%</span>
+          </div>
+          <div class="month-grid">
+            @for (week of monthWeeks(); track $index) {
+              @for (day of week; track $index) {
+                <div class="month-cell"
+                  [class.empty]="!day"
+                  [class.today]="day ? isToday(day) : false"
+                  [class.future]="day ? isFuture(day) : false"
+                  [class.checked]="day ? svc.isChecked(h.id, day) : false"
+                  [style.--habit-color]="getColor(h.color).hex"
+                  (click)="day && !isFuture(day) && toggle(h.id, day)">
+                  @if (day) { <span class="month-day-num">{{ day.getDate() }}</span> }
+                  @if (day && svc.isChecked(h.id, day)) { <span class="month-check">✓</span> }
+                </div>
+              }
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  @if (tab() === 'stats') {
+    <div class="stats-view">
+      <div class="stats-grid">
+        <div class="stat-box"><div class="stat-icon">🎯</div><div class="stat-val">{{ overallStats().pct }}%</div><div class="stat-lbl">الإنجاز الكلي</div></div>
+        <div class="stat-box"><div class="stat-icon">🔥</div><div class="stat-val">{{ overallStats().bestStreak }}</div><div class="stat-lbl">أطول streak</div></div>
+        <div class="stat-box"><div class="stat-icon">✅</div><div class="stat-val">{{ overallStats().done }}</div><div class="stat-lbl">يوم مكتمل</div></div>
+        <div class="stat-box"><div class="stat-icon">📋</div><div class="stat-val">{{ svc.habits().length }}</div><div class="stat-lbl">عادات نشطة</div></div>
+      </div>
+      <h3 class="section-title">تحليل الأداء</h3>
+      @for (h of svc.habits(); track h.id) {
+        <div class="analysis-row">
+          <div class="analysis-header">
+            <span class="a-icon" [style.background]="getColor(h.color).hex + '33'">{{ h.icon }}</span>
+            <span class="a-name">{{ h.name }}</span>
+            <span class="a-streak">🔥 {{ habitStats(h.id).streak }}</span>
+            <span class="a-pct" [style.color]="getColor(h.color).hex">{{ habitStats(h.id).pct }}%</span>
+          </div>
+          <div class="a-bar-bg">
+            <div class="a-bar-fill" [style.width.%]="habitStats(h.id).pct" [style.background]="getColor(h.color).hex"></div>
+          </div>
+          <div class="a-goal-row">
+            <span>هدف: {{ h.goal }} أيام/أسبوع</span>
+            <span>هذا الأسبوع: {{ habitStats(h.id).weekDone }}/{{ h.goal }}</span>
+            <span [class.goal-met]="habitStats(h.id).weekDone >= h.goal">{{ habitStats(h.id).weekDone >= h.goal ? '🏆 محقق!' : '⏳ جاري...' }}</span>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  @if (showAddModal()) {
+    <div class="modal-overlay" (click)="showAddModal.set(false)">
+      <div class="modal" (click)="$event.stopPropagation()">
+        <div class="modal-header"><span>✨ عادة جديدة</span><button class="close-btn" (click)="showAddModal.set(false)">✕</button></div>
+        <div class="modal-body">
+          <label>اسم العادة</label>
+          <input type="text" [(ngModel)]="newHabit.name" placeholder="مثال: الصلاة، الرياضة..." maxlength="25" />
+          <label>الأيقونة</label>
+          <div class="icon-grid">
+            @for (ic of ICONS; track ic) {
+              <button class="icon-pick" [class.selected]="newHabit.icon === ic" (click)="newHabit.icon = ic">{{ ic }}</button>
+            }
+          </div>
+          <label>اللون</label>
+          <div class="color-grid">
+            @for (c of COLORS; track c.value) {
+              <button class="color-pick" [class.selected]="newHabit.color === c.value" [style.background]="c.hex" (click)="newHabit.color = c.value">
+                @if (newHabit.color === c.value) { ✓ }
+              </button>
+            }
+          </div>
+          <label>التصنيف</label>
+          <div class="cat-grid">
+            @for (cat of CATEGORIES; track cat) {
+              <button class="cat-btn" [class.selected]="newHabit.category === cat" (click)="newHabit.category = cat">{{ cat }}</button>
+            }
+          </div>
+          <label>الهدف الأسبوعي: {{ newHabit.goal }} أيام</label>
+          <input type="range" min="1" max="7" [(ngModel)]="newHabit.goal" />
+        </div>
+        <div class="modal-footer">
+          <button class="cancel-btn" (click)="showAddModal.set(false)">إلغاء</button>
+          <button class="submit-btn" (click)="submitAdd()" [disabled]="!newHabit.name.trim()">إضافة ✓</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (showEditModal() && editingHabit()) {
+    <div class="modal-overlay" (click)="showEditModal.set(false)">
+      <div class="modal" (click)="$event.stopPropagation()">
+        <div class="modal-header"><span>✏️ تعديل العادة</span><button class="close-btn" (click)="showEditModal.set(false)">✕</button></div>
+        <div class="modal-body">
+          <label>اسم العادة</label>
+          <input type="text" [ngModel]="editingHabit()!.name" (ngModelChange)="editingHabit.update(h => h ? {...h, name: $event} : h)" maxlength="25" />
+          <label>الأيقونة</label>
+          <div class="icon-grid">
+            @for (ic of ICONS; track ic) {
+              <button class="icon-pick" [class.selected]="editingHabit()!.icon === ic" (click)="editingHabit.update(h => h ? {...h, icon: ic} : h)">{{ ic }}</button>
+            }
+          </div>
+          <label>اللون</label>
+          <div class="color-grid">
+            @for (c of COLORS; track c.value) {
+              <button class="color-pick" [class.selected]="editingHabit()!.color === c.value" [style.background]="c.hex" (click)="editingHabit.update(h => h ? {...h, color: c.value} : h)">
+                @if (editingHabit()!.color === c.value) { ✓ }
+              </button>
+            }
+          </div>
+          <label>التصنيف</label>
+          <div class="cat-grid">
+            @for (cat of CATEGORIES; track cat) {
+              <button class="cat-btn" [class.selected]="editingHabit()!.category === cat" (click)="editingHabit.update(h => h ? {...h, category: cat} : h)">{{ cat }}</button>
+            }
+          </div>
+          <label>الهدف الأسبوعي: {{ editingHabit()!.goal }} أيام</label>
+          <input type="range" min="1" max="7" [ngModel]="editingHabit()!.goal" (ngModelChange)="editingHabit.update(h => h ? {...h, goal: $event} : h)" />
+        </div>
+        <div class="modal-footer">
+          <button class="cancel-btn" (click)="showEditModal.set(false)">إلغاء</button>
+          <button class="submit-btn" (click)="submitEdit()">حفظ ✓</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (showDeleteConfirm()) {
+    <div class="modal-overlay" (click)="showDeleteConfirm.set(null)">
+      <div class="modal small" (click)="$event.stopPropagation()">
+        <div class="modal-header">⚠️ حذف العادة؟</div>
+        <p class="delete-msg">سيتم حذف العادة وكل سجلاتها نهائياً.</p>
+        <div class="modal-footer">
+          <button class="cancel-btn" (click)="showDeleteConfirm.set(null)">إلغاء</button>
+          <button class="delete-btn" (click)="doDelete(showDeleteConfirm()!)">حذف نهائياً 🗑️</button>
+        </div>
+      </div>
+    </div>
+  }
+
+</div>
